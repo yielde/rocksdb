@@ -440,7 +440,7 @@ Status DBImpl::Recover(
       return s;
     }
 
-    std::string current_fname = CurrentFileName(dbname_);
+    std::string current_fname = CurrentFileName(dbname_); // 创建CURRENT
     // Path to any MANIFEST file in the db dir. It does not matter which one.
     // Since best-efforts recovery ignores CURRENT file, existence of a
     // MANIFEST indicates the recovery to recover existing db. If no MANIFEST
@@ -463,7 +463,7 @@ Status DBImpl::Recover(
         FileType type = kWalFile;  // initialize
         if (ParseFileName(file, &number, &type) && type == kDescriptorFile) {
           uint64_t bytes;
-          s = env_->GetFileSize(DescriptorFileName(dbname_, number), &bytes);
+          s = env_->GetFileSize(DescriptorFileName(dbname_, number), &bytes); // 创建MANIFEST文件
           if (s.ok() && bytes != 0) {
             // Found non-empty MANIFEST (descriptor log), thus best-efforts
             // recovery does not have to treat the db as empty.
@@ -475,7 +475,7 @@ Status DBImpl::Recover(
     }
     if (s.IsNotFound()) {
       if (immutable_db_options_.create_if_missing) {
-        s = NewDB(&files_in_dbname);
+        s = NewDB(&files_in_dbname); // 如果是新创建的db，直接到这里创建
         is_new_db = true;
         if (!s.ok()) {
           return s;
@@ -2676,7 +2676,7 @@ Status DBImpl::Open(const DBOptions& db_options, const std::string& dbname,
         log::Writer* log_writer = impl->logs_.back().writer;
         IOOptions opts;
         s = WritableFileWriter::PrepareIOOptions(write_options, opts);
-        if (s.ok()) {
+        if (s.ok()) { // sync到WAL
           s = log_writer->file()->Sync(opts,
                                        impl->immutable_db_options_.use_fsync);
         }
@@ -2692,7 +2692,7 @@ Status DBImpl::Open(const DBOptions& db_options, const std::string& dbname,
     ROCKS_LOG_WARN(impl->immutable_db_options_.info_log,
                    "DB::Open() failed: %s", s.ToString().c_str());
   }
-  if (s.ok()) {
+  if (s.ok()) { // 注册timer_，timer_貌似是堆实现的
     s = impl->StartPeriodicTaskScheduler();
   }
   if (s.ok()) {
@@ -2700,7 +2700,7 @@ Status DBImpl::Open(const DBOptions& db_options, const std::string& dbname,
   }
   impl->options_mutex_.Unlock();
   if (s.ok()) {
-    *dbptr = std::move(impl);
+    *dbptr = std::move(impl); // 开始的 DB* db; 指向了子类 DBImpl 类
   } else {
     for (auto* h : *handles) {
       delete h;

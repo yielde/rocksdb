@@ -253,8 +253,8 @@ bool WriteThread::LinkOne(Writer* w, std::atomic<Writer*>* newest_writer) {
       }
     }
     w->link_older = writers;
-    if (newest_writer->compare_exchange_weak(writers, w)) {
-      return (writers == nullptr);
+    if (newest_writer->compare_exchange_weak(writers, w)) { // 无锁链表
+      return (writers == nullptr); // 第一个加入到链表中的Writer成为Leader
     }
   }
 }
@@ -402,7 +402,7 @@ void WriteThread::JoinBatchGroup(Writer* w) {
   TEST_SYNC_POINT_CALLBACK("WriteThread::JoinBatchGroup:Start", w);
   assert(w->batch != nullptr);
 
-  bool linked_as_leader = LinkOne(w, &newest_writer_);
+  bool linked_as_leader = LinkOne(w, &newest_writer_); // 插入Writer链表
 
   w->CheckWriteEnqueuedCallback();
 
@@ -465,7 +465,7 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
   // (they emptied the list and then we added ourself as leader) or had to
   // explicitly wake us up (the list was non-empty when we added ourself,
   // so we have already received our MarkJoined).
-  CreateMissingNewerLinks(newest_writer);
+  CreateMissingNewerLinks(newest_writer); // 将链表补充为双向链表
 
   // This comment illustrates how the rest of the function works using an
   // example. Notation:

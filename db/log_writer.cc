@@ -157,7 +157,8 @@ IOStatus Writer::AddRecord(const WriteOptions& write_options,
         ptr = compressed_buffer_.get();
       }
 
-      const size_t fragment_length = (left < avail) ? left : avail;
+      const size_t fragment_length =
+          (left < avail) ? left : avail;  // 要写入的长度
 
       RecordType type;
       const bool end = (left == fragment_length && compress_remaining == 0);
@@ -171,7 +172,8 @@ IOStatus Writer::AddRecord(const WriteOptions& write_options,
         type = recycle_log_files_ ? kRecyclableMiddleType : kMiddleType;
       }
 
-      s = EmitPhysicalRecord(write_options, type, ptr, fragment_length);
+      s = EmitPhysicalRecord(write_options, type, ptr,
+                             fragment_length);  // 写入
       ptr += fragment_length;
       left -= fragment_length;
       begin = false;
@@ -316,9 +318,9 @@ IOStatus Writer::EmitPhysicalRecord(const WriteOptions& write_options,
   char buf[kRecyclableHeaderSize];
 
   // Format the header
-  buf[4] = static_cast<char>(n & 0xff);
-  buf[5] = static_cast<char>(n >> 8);
-  buf[6] = static_cast<char>(t);
+  buf[4] = static_cast<char>(n & 0xff); // Size
+  buf[5] = static_cast<char>(n >> 8); // Size
+  buf[6] = static_cast<char>(t); // Type
 
   uint32_t crc = type_crc_[t];
   if (t < kRecyclableFullType || t == kSetCompressionType ||
@@ -346,7 +348,7 @@ IOStatus Writer::EmitPhysicalRecord(const WriteOptions& write_options,
   crc = crc32c::Mask(crc);  // Adjust for storage
   TEST_SYNC_POINT_CALLBACK("LogWriter::EmitPhysicalRecord:BeforeEncodeChecksum",
                            &crc);
-  EncodeFixed32(buf, crc);
+  EncodeFixed32(buf, crc); // CRC
 
   // Write the header and the payload
   IOOptions opts;
@@ -355,7 +357,7 @@ IOStatus Writer::EmitPhysicalRecord(const WriteOptions& write_options,
     s = dest_->Append(opts, Slice(buf, header_size), 0 /* crc32c_checksum */);
   }
   if (s.ok()) {
-    s = dest_->Append(opts, Slice(ptr, n), payload_crc);
+    s = dest_->Append(opts, Slice(ptr, n), payload_crc); // 添加Payload
   }
   block_offset_ += header_size + n;
   return s;

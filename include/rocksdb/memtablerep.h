@@ -374,7 +374,7 @@ class MemTableRepFactory : public Customizable {
 //     search from the previously visited record (doing at most 'lookahead'
 //     steps). This is an optimization for the access pattern including many
 //     seeks with consecutive keys.
-class SkipListFactory : public MemTableRepFactory {
+class SkipListFactory : public MemTableRepFactory { // memtable的默认实现
  public:
   explicit SkipListFactory(size_t lookahead = 0);
 

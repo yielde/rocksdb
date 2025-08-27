@@ -66,7 +66,7 @@ class WriteBatch : public WriteBatchBase {
   explicit WriteBatch(size_t reserved_bytes = 0, size_t max_bytes = 0)
       : WriteBatch(reserved_bytes, max_bytes, 0, 0) {}
 
-  // `protection_bytes_per_key` is the number of bytes used to store
+  // `protection_bytes_per_key` is the number of bytes used to store （存储校验和）
   // protection information for each key entry. Currently supported values are
   // zero (disabled) and eight.
   explicit WriteBatch(size_t reserved_bytes, size_t max_bytes,
@@ -524,7 +524,7 @@ class WriteBatch : public WriteBatchBase {
   // that enables user-defined timestamp.
   bool has_key_with_ts_ = false;
 
-  // For HasXYZ.  Mutable to allow lazy computation of results
+  // For HasXYZ.  Mutable to allow lazy computation of results，有趣！
   mutable std::atomic<uint32_t> content_flags_;
 
   // Performs deferred computation of content_flags if necessary

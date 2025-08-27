@@ -180,7 +180,7 @@ WriteBatch::WriteBatch(size_t reserved_bytes, size_t max_bytes,
       default_cf_ts_sz_(default_cf_ts_sz),
       rep_() {
   // Currently `protection_bytes_per_key` can only be enabled at 8 bytes per
-  // entry.
+  // entry. 构造batch的header信息，has an 8-byte sequence number followed by a 4-byte count.
   assert(protection_bytes_per_key == 0 || protection_bytes_per_key == 8);
   if (protection_bytes_per_key != 0) {
     prot_info_.reset(new WriteBatch::ProtectionInfo());
@@ -853,16 +853,16 @@ Status WriteBatchInternal::Put(WriteBatch* b, uint32_t column_family_id,
                                const Slice& key, const Slice& value) {
   if (key.size() > size_t{std::numeric_limits<uint32_t>::max()}) {
     return Status::InvalidArgument("key is too large");
-  }
+  } // key和value长度不超过4GB - 1
   if (value.size() > size_t{std::numeric_limits<uint32_t>::max()}) {
     return Status::InvalidArgument("value is too large");
   }
 
   LocalSavePoint save(b);
-  WriteBatchInternal::SetCount(b, WriteBatchInternal::Count(b) + 1);
+  WriteBatchInternal::SetCount(b, WriteBatchInternal::Count(b) + 1); // 增加一条
   if (column_family_id == 0) {
-    b->rep_.push_back(static_cast<char>(kTypeValue));
-  } else {
+    b->rep_.push_back(static_cast<char>(kTypeValue)); // 默认cf
+  } else { // 指定cf
     b->rep_.push_back(static_cast<char>(kTypeColumnFamilyValue));
     PutVarint32(&b->rep_, column_family_id);
   }
@@ -877,7 +877,7 @@ Status WriteBatchInternal::Put(WriteBatch* b, uint32_t column_family_id,
     // however since we verify CF ID is correct, as well as all other fields
     // (a missing/extra encoded CF ID would corrupt another field). It is
     // convenient to consolidate on `kTypeValue` here as that is what will be
-    // inserted into memtable.
+    // inserted into memtable. 为了和memtable对齐颗粒度，插入memtable不需要再看这条记录属于哪个cf
     b->prot_info_->entries_.emplace_back(ProtectionInfo64()
                                              .ProtectKVO(key, value, kTypeValue)
                                              .ProtectC(column_family_id));
@@ -3443,7 +3443,7 @@ Status WriteBatchInternal::Append(WriteBatch* dst, const WriteBatch* src,
   }
   SetCount(dst, Count(dst) + src_count);
   assert(src->rep_.size() >= WriteBatchInternal::kHeader);
-  dst->rep_.append(src->rep_.data() + WriteBatchInternal::kHeader, src_len);
+  dst->rep_.append(src->rep_.data() + WriteBatchInternal::kHeader, src_len); // MergeBatch会把其他的header去掉
   dst->content_flags_.store(
       dst->content_flags_.load(std::memory_order_relaxed) | src_flags,
       std::memory_order_relaxed);
@@ -3470,7 +3470,7 @@ Status WriteBatchInternal::UpdateProtectionInfo(WriteBatch* wb,
       // Already not protected.
       return Status::OK();
     }
-  } else if (bytes_per_key == 8) {
+  } else if (bytes_per_key == 8) { // 目前只支持8字节的checksum
     if (wb->prot_info_ == nullptr) {
       wb->prot_info_.reset(new WriteBatch::ProtectionInfo());
       ProtectionInfoUpdater prot_info_updater(wb->prot_info_.get());

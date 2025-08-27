@@ -218,8 +218,8 @@ inline void PutVarint32Varint32Varint64(std::string* dst, uint32_t v1,
 }
 
 inline void PutLengthPrefixedSlice(std::string* dst, const Slice& value) {
-  PutVarint32(dst, static_cast<uint32_t>(value.size()));
-  dst->append(value.data(), value.size());
+  PutVarint32(dst, static_cast<uint32_t>(value.size())); // append key或value的长度
+  dst->append(value.data(), value.size()); // append key或value的数据
 }
 
 inline void PutLengthPrefixedSliceParts(std::string* dst, size_t total_bytes,

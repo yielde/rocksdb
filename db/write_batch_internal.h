@@ -279,7 +279,7 @@ class LocalSavePoint {
 #ifndef NDEBUG
     committed_ = true;
 #endif
-    if (batch_->max_bytes_ && batch_->rep_.size() > batch_->max_bytes_) {
+    if (batch_->max_bytes_ && batch_->rep_.size() > batch_->max_bytes_) { // max_bytes_为0表示不限制
       batch_->rep_.resize(savepoint_.size);
       WriteBatchInternal::SetCount(batch_, savepoint_.count);
       if (batch_->prot_info_ != nullptr) {

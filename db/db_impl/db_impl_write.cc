@@ -537,19 +537,19 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
     return status;
   }
 
-  if (immutable_db_options_.enable_pipelined_write) {
+  if (immutable_db_options_.enable_pipelined_write) { // pipeline写入
     return PipelinedWriteImpl(write_options, my_batch, callback, user_write_cb,
                               wal_used, log_ref, disable_memtable, seq_used);
   }
 
   PERF_TIMER_GUARD(write_pre_and_post_process_time);
-  WriteThread::Writer w(write_options, my_batch, callback, user_write_cb,
+  WriteThread::Writer w(write_options, my_batch, callback, user_write_cb, // 写线程
                         log_ref, disable_memtable, batch_cnt,
                         pre_release_callback, post_memtable_callback,
                         /*_ingest_wbwi=*/wbwi != nullptr);
   StopWatch write_sw(immutable_db_options_.clock, stats_, DB_WRITE);
 
-  write_thread_.JoinBatchGroup(&w);
+  write_thread_.JoinBatchGroup(&w); // 加入write batch group
   if (w.state == WriteThread::STATE_PARALLEL_MEMTABLE_CALLER) {
     write_thread_.SetMemWritersEachStride(&w);
   }
@@ -645,7 +645,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   // into memtables
 
   TEST_SYNC_POINT("DBImpl::WriteImpl:BeforeLeaderEnters");
-  last_batch_group_size_ =
+  last_batch_group_size_ = // 整理write到group，write的行为可能不同，与leader相同的放到同一group
       write_thread_.EnterAsBatchGroupLeader(&w, &write_group);
   if (wbwi) {
     assert(write_group.size == 1);
@@ -654,7 +654,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   IOStatus io_s;
   Status pre_release_cb_status;
   size_t seq_inc = 0;
-  if (status.ok()) {
+  if (status.ok()) { // 允许并发写memtable的场景
     // Rules for when we can update the memtable concurrently
     // 1. supported by memtable
     // 2. Puts are not okay if inplace_update_support
@@ -677,7 +677,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
       if (writer->CheckCallback(this)) {
         valid_batches += writer->batch_cnt;
         if (writer->ShouldWriteToMemtable()) {
-          total_count += WriteBatchInternal::Count(writer->batch);
+          total_count += WriteBatchInternal::Count(writer->batch); // 有多少个operation
           total_byte_size = WriteBatchInternal::AppendedByteSize(
               total_byte_size, WriteBatchInternal::ByteSize(writer->batch));
           parallel = parallel && !writer->batch->HasMerge();
@@ -764,7 +764,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
         assert(wal_context.wal_file_number_size);
         wal_context.prev_size = wal_context.writer->file()->GetFileSize();
         PERF_TIMER_GUARD(write_wal_time);
-        io_s = WriteGroupToWAL(write_group, wal_context.writer, wal_used,
+        io_s = WriteGroupToWAL(write_group, wal_context.writer, wal_used, // 写入WAL
                                wal_context.need_wal_sync,
                                wal_context.need_wal_dir_sync, last_sequence + 1,
                                *wal_context.wal_file_number_size);
@@ -1513,7 +1513,7 @@ Status DBImpl::PreprocessWrite(const WriteOptions& write_options,
     assert(num_cfs >= 1);
     if (num_cfs > 1) {
       WaitForPendingWrites();
-      status = SwitchWAL(write_context);
+      status = SwitchWAL(write_context); // 超过WAL的最大限制，切换新的WAL和所有cf的Memtable
     }
   }
 
@@ -1561,7 +1561,7 @@ Status DBImpl::PreprocessWrite(const WriteOptions& write_options,
   // It does soft checking because WriteBufferManager::buffer_limit_ has already
   // exceeded at this point so no new write (including current one) will go
   // through until memory usage is decreased.
-  if (UNLIKELY(status.ok() && write_buffer_manager_->ShouldStall())) {
+  if (UNLIKELY(status.ok() && write_buffer_manager_->ShouldStall())) { // 内存使用超过阈值，stall所有writer
     default_cf_internal_stats_->AddDBStats(
         InternalStats::kIntStatsWriteBufferManagerLimitStopsCounts, 1,
         true /* concurrent */);
@@ -1709,7 +1709,7 @@ IOStatus DBImpl::WriteGroupToWAL(const WriteThread::WriteGroup& write_group,
   size_t write_with_wal = 0;
   WriteBatch* to_be_cached_state = nullptr;
   WriteBatch* merged_batch;
-  io_s = status_to_io_status(MergeBatch(write_group, &tmp_batch_, &merged_batch,
+  io_s = status_to_io_status(MergeBatch(write_group, &tmp_batch_, &merged_batch, // 合并 WriteBatch
                                         &write_with_wal, &to_be_cached_state));
   if (UNLIKELY(!io_s.ok())) {
     return io_s;
@@ -1723,7 +1723,7 @@ IOStatus DBImpl::WriteGroupToWAL(const WriteThread::WriteGroup& write_group,
     }
   }
 
-  WriteBatchInternal::SetSequence(merged_batch, sequence);
+  WriteBatchInternal::SetSequence(merged_batch, sequence); // 设置该Batch的sequence
 
   uint64_t log_size;
 
@@ -1942,7 +1942,7 @@ Status DBImpl::WriteRecoverableState() {
   return Status::OK();
 }
 
-void DBImpl::SelectColumnFamiliesForAtomicFlush(
+void DBImpl::SelectColumnFamiliesForAtomicFlush( // 选择需要flush的memtable
     autovector<ColumnFamilyData*>* selected_cfds,
     const autovector<ColumnFamilyData*>& provided_candidate_cfds,
     FlushReason flush_reason) {
@@ -2092,7 +2092,7 @@ Status DBImpl::SwitchWAL(WriteContext* write_context) {
       GenerateFlushRequest(cfds, FlushReason::kWalFull, &flush_req);
       EnqueuePendingFlush(flush_req);
     }
-    MaybeScheduleFlushOrCompaction();
+    MaybeScheduleFlushOrCompaction();  // 告知后台线程BackgroundCallFlush处理FlushRequest请求
   }
   return status;
 }
@@ -2156,7 +2156,7 @@ Status DBImpl::HandleWriteBufferManagerFlush(WriteContext* write_context) {
       continue;
     }
     cfd->Ref();
-    status = SwitchMemtable(cfd, write_context);
+    status = SwitchMemtable(cfd, write_context); // 切换一个
     cfd->UnrefAndTryDelete();
     if (!status.ok()) {
       break;
@@ -2781,7 +2781,7 @@ Status DB::Put(const WriteOptions& opt, ColumnFamilyHandle* column_family,
   // 8 bytes are taken by header, 4 bytes for count, 1 byte for type,
   // and we allocate 11 extra bytes for key length, as well as value length.
   WriteBatch batch(key.size() + value.size() + 24, 0 /* max_bytes */,
-                   opt.protection_bytes_per_key, 0 /* default_cf_ts_sz */);
+                   opt.protection_bytes_per_key, 0 /* default_cf_ts_sz */); // 设置权限，分配空间
   Status s = batch.Put(column_family, key, value);
   if (!s.ok()) {
     return s;

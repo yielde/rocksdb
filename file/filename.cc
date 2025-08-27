@@ -22,7 +22,7 @@
 #include "util/string_util.h"
 
 namespace ROCKSDB_NAMESPACE {
-
+// 创建一系列db文件
 const std::string kCurrentFileName = "CURRENT";
 const std::string kOptionsFileNamePrefix = "OPTIONS-";
 const std::string kTempFileNameSuffix = "dbtmp";

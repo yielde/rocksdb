@@ -73,7 +73,7 @@ class InlineSkipList {
   // Create a new InlineSkipList object that will use "cmp" for comparing
   // keys, and will allocate memory using "*allocator".  Objects allocated
   // in the allocator must remain allocated for the lifetime of the
-  // skiplist object.
+  // skiplist object. memtable的skiplist实现
   explicit InlineSkipList(Comparator cmp, Allocator* allocator,
                           int32_t max_height = 12,
                           int32_t branching_factor = 4);

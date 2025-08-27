@@ -933,7 +933,8 @@ Status MemTable::Add(SequenceNumber s, ValueType type,
   std::unique_ptr<MemTableRep>& table =
       type == kTypeRangeDeletion ? range_del_table_ : table_;
   KeyHandle handle = table->Allocate(encoded_len, &buf);
-
+  // internal_key_size=key.size() + 7(7字节sequence) + 1(1字节操作类型)
+  // internal_key_size + key.data() + 7字节的sequence + 1字节的操作类型 + val_size + value.data()
   char* p = EncodeVarint32(buf, internal_key_size);
   memcpy(p, key.data(), key_size);
   Slice key_slice(p, key_size);
@@ -970,7 +971,7 @@ Status MemTable::Add(SequenceNumber s, ValueType type,
         return Status::TryAgain("key+seq exists");
       }
     } else {
-      bool res = table->InsertKey(handle);
+      bool res = table->InsertKey(handle); // 插入
       if (UNLIKELY(!res)) {
         return Status::TryAgain("key+seq exists");
       }
@@ -993,7 +994,7 @@ Status MemTable::Add(SequenceNumber s, ValueType type,
 
     if (bloom_filter_ && prefix_extractor_ &&
         prefix_extractor_->InDomain(key_without_ts)) {
-      bloom_filter_->Add(prefix_extractor_->Transform(key_without_ts));
+      bloom_filter_->Add(prefix_extractor_->Transform(key_without_ts)); // bloom filter插入
     }
     if (bloom_filter_ && moptions_.memtable_whole_key_filtering) {
       bloom_filter_->Add(key_without_ts);
